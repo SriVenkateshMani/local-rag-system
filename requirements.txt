@@ -1,2 +1,5 @@
 sentence-transformers
 numpy
+opensearch-py
+pypdf
+ollama
