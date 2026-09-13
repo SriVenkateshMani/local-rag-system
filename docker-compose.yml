@@ -1,0 +1,9 @@
+services:
+  opensearch:
+    image: opensearchproject/opensearch:2.19.3
+    container_name: opensearch
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+    ports:
+      - "9200:9200"
