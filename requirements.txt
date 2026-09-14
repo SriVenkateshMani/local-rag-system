@@ -3,3 +3,4 @@ numpy
 opensearch-py
 pypdf
 ollama
+streamlit

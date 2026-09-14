@@ -1,196 +1,221 @@
 # Local Hybrid RAG System
 
-A local Retrieval-Augmented Generation (RAG) system built from scratch to understand the core components behind modern RAG pipelines.
+A local Retrieval-Augmented Generation system built from scratch using OpenSearch, Sentence Transformers, Ollama, and Streamlit.
 
-The project uses **Sentence Transformers** for embeddings and **OpenSearch** as the retrieval backend, with the goal of supporting both **semantic vector search** and **BM25 lexical search**, followed by hybrid retrieval and local LLM generation.
+The application allows users to upload a PDF, retrieve the most relevant sections using both semantic vector search and BM25 keyword search, combine both result sets using reciprocal-rank fusion, and generate an answer locally using Llama 3.2 through Ollama.
 
 ## Why This Project?
 
-RAG frameworks such as LangChain and LlamaIndex provide convenient abstractions for retrieval pipelines. This project intentionally implements the core retrieval workflow directly to understand what happens underneath those abstractions.
+I built this project to understand what actually happens inside a RAG pipeline instead of relying immediately on frameworks like LangChain or LlamaIndex.
 
-The system is being built incrementally:
+The goal was to learn each stage independently:
+
+- How documents are extracted and chunked
+- How embeddings are generated
+- How vector similarity search works
+- How BM25 keyword retrieval differs from semantic retrieval
+- Why hybrid retrieval can outperform either approach alone
+- How retrieved context is passed to an LLM
+- How retrieval quality directly affects answer quality
+- How to run an entire RAG pipeline locally
+
+Building the pipeline manually made it much easier to understand where retrieval latency, bad answers, duplicate indexing, chunking issues, and ranking problems actually come from.
+
+## Architecture
 
 ```text
-Documents
+PDF Upload
     ↓
-Chunking
+Text Extraction
     ↓
-Embeddings
+Word-Based Chunking
+    ↓
+SentenceTransformer Embeddings
     ↓
 OpenSearch
-    ├── Dense Vector Search
-    └── BM25 Lexical Search
-            ↓
-      Hybrid Retrieval
-            ↓
-        Local LLM
-            ↓
-         Response
+    ├── BM25 Lexical Search
+    └── k-NN Semantic Search
+             ↓
+     Reciprocal-Rank Fusion
+             ↓
+      Top Relevant Chunks
+             ↓
+       Prompt Construction
+             ↓
+          Ollama
+             ↓
+       Llama 3.2 3B
+             ↓
+           Answer
 ```
 
-## Current Progress
+## Hybrid Search
 
-- [x] Project structure and logging
-- [x] Sentence Transformer embeddings
-- [x] OpenSearch running locally with Docker
-- [x] OpenSearch index and vector mapping
-- [x] Document ingestion with deterministic IDs
-- [x] Dense semantic retrieval using k-NN
-- [ ] BM25 lexical retrieval
-- [ ] Hybrid search
-- [ ] Document/PDF ingestion and chunking
-- [ ] Local LLM integration
-- [ ] RAG response generation
-- [ ] Streamlit interface
+The main focus of this project is hybrid retrieval.
+
+Instead of relying only on vector similarity, each user query is processed through two retrieval methods.
+
+**BM25 Search** finds chunks containing important exact words and phrases.
+
+**Semantic Search** converts the query into an embedding and retrieves chunks with similar meaning using OpenSearch k-NN vector search.
+
+The rankings from both searches are combined using reciprocal-rank fusion.
+
+```text
+BM25
+exact keyword relevance
+
+        +
+
+Semantic Search
+meaning-based relevance
+
+        ↓
+
+Hybrid Retrieval
+```
+
+This helps the system handle both exact technical terms and questions where the wording differs from the original document.
 
 ## Tech Stack
 
-- **Python**
-- **Sentence Transformers**
-- **OpenSearch**
-- **Docker / Docker Compose**
-- **Local LLM** — planned
-- **Streamlit** — planned
+- Python
+- Streamlit
+- OpenSearch
+- Docker
+- Sentence Transformers
+- `all-MiniLM-L6-v2`
+- BM25
+- k-NN Vector Search
+- Reciprocal-Rank Fusion
+- Ollama
+- Llama 3.2 3B
+- pypdf
 
 ## Project Structure
 
 ```text
 local-rag-system/
+├── .streamlit/
+│   └── config.toml
+├── data/
+│   └── sample_rag_knowledge_base.pdf
 ├── src/
 │   ├── __init__.py
+│   ├── document_loader.py
 │   ├── embeddings.py
+│   ├── generation.py
 │   ├── ingestion.py
 │   ├── logger.py
 │   ├── opensearch_client.py
 │   └── retrieval.py
-├── .gitignore
-├── docker-compose.yml
+├── app.py
 ├── main.py
+├── docker-compose.yml
 ├── requirements.txt
+├── .gitignore
 └── README.md
 ```
 
-### Module Responsibilities
+## How to Run
 
-`embeddings.py`
-: Generates vector embeddings from text using Sentence Transformers.
-
-`opensearch_client.py`
-: Creates the OpenSearch client and defines the index configuration and mappings.
-
-`ingestion.py`
-: Stores documents and their embeddings in OpenSearch using deterministic document IDs.
-
-`retrieval.py`
-: Contains retrieval logic, including semantic k-NN search and eventually BM25 and hybrid retrieval.
-
-`logger.py`
-: Provides centralized application logging.
-
-`main.py`
-: Orchestrates embedding generation, ingestion, and retrieval.
-
-## Retrieval
-
-### Dense Semantic Search
-
-Queries are converted into embeddings using the same embedding model used for the indexed documents.
-
-```text
-Query
-  ↓
-Sentence Transformer
-  ↓
-Query Embedding
-  ↓
-OpenSearch k-NN Search
-  ↓
-Top-K Semantically Similar Documents
-```
-
-This allows retrieval based on semantic meaning rather than only exact keyword matches.
-
-### BM25 Lexical Search
-
-Coming next.
-
-BM25 will search the `text` field using lexical relevance, allowing the system to retrieve documents based on matching words and terms.
-
-### Hybrid Search
-
-The final retriever will combine:
-
-```text
-Dense Search  ──┐
-                ├── Hybrid Ranking → Top-K Context
-BM25 Search   ──┘
-```
-
-This combines semantic similarity with traditional keyword-based retrieval.
-
-## Running OpenSearch
-
-Start the local OpenSearch server:
+### 1. Clone the repository
 
 ```bash
-docker compose up
+git clone https://github.com/YOUR_USERNAME/local-rag-system.git
+cd local-rag-system
 ```
 
-Verify that OpenSearch is running:
+### 2. Create a virtual environment
+
+```bash
+python3 -m venv ~/.venvs/local-rag-system
+source ~/.venvs/local-rag-system/bin/activate
+```
+
+### 3. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Start OpenSearch with Docker
+
+```bash
+docker compose up -d
+```
+
+Verify OpenSearch:
 
 ```bash
 curl http://localhost:9200
 ```
 
-## Running the Project
-
-Create and activate a virtual environment, then install dependencies:
-
-```bash
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-Run the application:
-
-```bash
-python main.py
-```
-
-## Security
-
-Secrets and local environment variables should be stored in `.env` and must not be committed to Git.
-
-The `.gitignore` includes local development files such as:
+OpenSearch should be running at:
 
 ```text
-venv/
-__pycache__/
-.env
+http://localhost:9200
 ```
 
-Never commit API keys or other credentials to the repository.
+### 5. Install the local LLM
 
-## Learning Goals
+Install Ollama and pull the model:
 
-This project focuses on understanding the individual pieces of a RAG system rather than relying entirely on high-level framework abstractions.
+```bash
+ollama pull llama3.2:3b
+```
 
-Key concepts explored include:
+Verify:
 
-- Text embeddings
-- Vector similarity search
-- k-nearest neighbors (k-NN)
-- OpenSearch mappings and indexing
-- Dense retrieval
-- BM25 lexical retrieval
-- Hybrid retrieval
-- Document chunking
-- Retrieval-Augmented Generation
-- Local LLM inference
+```bash
+ollama list
+```
 
-## Status
+### 6. Run the application
 
-🚧 **Work in progress**
+```bash
+streamlit run app.py
+```
 
-The dense semantic retrieval pipeline is currently functional. BM25 retrieval, hybrid search, real document ingestion, and generation are being added incrementally.
+Open:
+
+```text
+http://localhost:8501
+```
+
+Upload a text-based PDF and ask questions about it.
+
+## How the Full Pipeline Works
+
+When a PDF is uploaded:
+
+```text
+PDF
+→ extract text
+→ split into overlapping chunks
+→ generate 384-dimensional embeddings
+→ store chunks and embeddings in OpenSearch
+```
+
+When a question is asked:
+
+```text
+Question
+→ generate query embedding
+→ semantic k-NN search
+→ BM25 search
+→ fuse both rankings
+→ select top chunks
+→ send retrieved context to Llama
+→ generate grounded answer
+```
+
+The embeddings are generated with `all-MiniLM-L6-v2`, while OpenSearch handles both BM25 and vector retrieval.
+
+Ollama runs `llama3.2:3b` locally for answer generation.
+
+The Streamlit UI is intentionally simple — most of the work went into understanding and implementing the retrieval pipeline rather than frontend styling.
+
+## Author
+
+**Sri Venkatesha Mani**
