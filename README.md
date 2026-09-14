@@ -214,7 +214,7 @@ The embeddings are generated with `all-MiniLM-L6-v2`, while OpenSearch handles b
 
 Ollama runs `llama3.2:3b` locally for answer generation.
 
-The Streamlit UI is intentionally simple — most of the work went into understanding and implementing the retrieval pipeline rather than frontend styling.
+The Streamlit UI is intentionally simple and most of the work went into understanding and implementing the retrieval pipeline rather than frontend styling. Also don't bash me for not deploying it, again the same reason sorry folks :)
 
 ## Author
 
